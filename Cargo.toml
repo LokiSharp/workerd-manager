@@ -1,3 +1,17 @@
+[package]
+name = "workerd-manager"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
 [workspace]
-members = ["crates/api"]
-resolver = "2"
+members = [
+    ".",
+    "crates/api",
+    "crates/entity",
+    "crates/migration",
+    "crates/entity", "crates/service",
+]
+
+[dependencies]
+api = { path = "crates/api" }

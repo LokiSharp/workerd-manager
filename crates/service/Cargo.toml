@@ -1,0 +1,17 @@
+[package]
+name = "service"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "service"
+path = "src/lib.rs"
+
+[dependencies]
+entity = { path = "../entity" }
+sea-orm = { version = "1.0.0", features = [
+    "debug-print",
+    "sqlx-postgres",
+    "runtime-tokio-rustls",
+    "macros",
+] }

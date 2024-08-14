@@ -19,10 +19,16 @@
 		"ghcr.io/devcontainers/features/git:1": {
 			"version": "latest",
 			"ppa": "false"
+		},
+		"ghcr.io/rocker-org/devcontainer-features/apt-packages:1": {
+			"packages": "pkg-config"
 		}
 	},
 	// Use 'forwardPorts' to make a list of ports inside the container available locally.
-	// "forwardPorts": [],
+	"forwardPorts": [
+		"db:5432",
+		"redis:6379"
+	],
 	// Configure tool-specific properties.
 	"customizations": {
 		"vscode": {
