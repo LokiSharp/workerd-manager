@@ -14,4 +14,8 @@ sea-orm = { version = "1.0.0", features = [
     "sqlx-postgres",
     "runtime-tokio-rustls",
     "macros",
+    "mock",
 ] }
+
+[dev-dependencies]
+tokio = { version = "1.39.2", features = ["macros", "rt"] }

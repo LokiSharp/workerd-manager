@@ -8,5 +8,5 @@ name = "entity"
 path = "src/lib.rs"
 
 [dependencies]
-sea-orm = "1.0.0"
+sea-orm = { version = "1.0.0", features = ["postgres-array"] }
 serde = { version = "1.0.207", features = ["derive"] }

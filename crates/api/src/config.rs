@@ -1,13 +1,13 @@
 use crate::errors::ConfigError;
 use jsonwebtoken::{DecodingKey, EncodingKey};
 use service::sea_orm::{Database, DatabaseConnection};
-use std::borrow::Cow;
+use std::{borrow::Cow, sync::Arc};
 use tracing::error;
 
 #[derive(Clone)]
 pub struct AppState {
-    pub db: DatabaseConnection,
-    pub redis_client: redis::Client,
+    pub db: Arc<DatabaseConnection>,
+    pub redis_client: Arc<redis::Client>,
     pub env: EnvironmentVariables,
     pub jwt_auth_keys: Keys,
     pub jwt_refresh_keys: Keys,
@@ -17,14 +17,19 @@ impl AppState {
     pub async fn from_env() -> Result<Self, ConfigError> {
         let env = EnvironmentVariables::from_env()?;
         Ok(Self {
-            db: Database::connect(&*env.database_url).await.map_err(|err| {
-                error!("failed to connect to the database: {:?}", err);
-                ConfigError::FailedDatabaseConnection
-            })?,
-            redis_client: redis::Client::open(env.redis_url.as_ref()).map_err(|err| {
-                error!("failed to connect to Redis: {:?}", err);
-                ConfigError::FailedRedisConnection
-            })?,
+            db: Database::connect(&*env.database_url)
+                .await
+                .map_err(|err| {
+                    error!("failed to connect to the database: {:?}", err);
+                    ConfigError::FailedDatabaseConnection
+                })?
+                .into(),
+            redis_client: redis::Client::open(env.redis_url.as_ref())
+                .map_err(|err| {
+                    error!("failed to connect to Redis: {:?}", err);
+                    ConfigError::FailedRedisConnection
+                })?
+                .into(),
             env: env.clone(),
             jwt_auth_keys: Keys::new(env.clone().jwt_secret.as_bytes()),
             jwt_refresh_keys: Keys::new(env.clone().jwt_refresh_secret.as_bytes()),
