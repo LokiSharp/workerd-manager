@@ -1,4 +1,8 @@
-use crate::{auth::AccessTokenClaims, config::AppState, errors::ServerError};
+use crate::{
+    auth::{hash_password, AccessTokenClaims},
+    config::AppState,
+    errors::ServerError,
+};
 
 use axum::{
     debug_handler,
@@ -28,11 +32,19 @@ pub async fn create_user(
     State(state): State<AppState>,
     Json(new_user): Json<CreateUserRequest>,
 ) -> Result<String, ServerError> {
+    let hashed_password = match hash_password(&new_user.password) {
+        Ok(hash) => hash,
+        Err(err) => {
+            tracing::error!("Failed to hash password: {:?}", err);
+            return Err(ServerError::InternalServerError);
+        }
+    };
+
     Mutation::create_user(
         &state.db,
         new_user.email,
         new_user.username,
-        new_user.password,
+        hashed_password,
     )
     .await
     .map(|_| "User created successfully".to_owned())
@@ -109,7 +121,16 @@ pub async fn update_user(
         tracing::error!("Unauthorized access: {:?}", claims);
         return Err(ServerError::Unauthorized);
     }
-    Mutation::update_user(&state.db, id, user.email, user.username, user.password)
+
+    let hashed_password = match hash_password(&user.password) {
+        Ok(hash) => hash,
+        Err(err) => {
+            tracing::error!("Failed to hash password: {:?}", err);
+            return Err(ServerError::InternalServerError);
+        }
+    };
+
+    Mutation::update_user(&state.db, id, user.email, user.username, hashed_password)
         .await
         .map(|_| "User updated successfully".to_owned())
         .map_err(|err| {

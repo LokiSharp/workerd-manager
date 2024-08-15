@@ -1,4 +1,8 @@
 use crate::{config::AppState, errors::ServerError};
+use argon2::{
+    password_hash::{rand_core::OsRng, PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
+    Argon2,
+};
 use axum::{
     async_trait, debug_handler,
     extract::{FromRef, FromRequestParts, State},
@@ -31,7 +35,11 @@ pub async fn login(
         .await
         .map_err(|_| ServerError::InternalServerError)?
         .ok_or(ServerError::WrongCredentials)?;
-    if payload.email != user.email || payload.password != user.password {
+
+    if !verify_password(&user.password, &payload.password)
+        .map_err(|_| ServerError::InternalServerError)?
+    {
+        tracing::error!("Failed to verify password: {:?}", payload);
         return Err(ServerError::WrongCredentials);
     }
 
@@ -267,4 +275,22 @@ pub fn is_refresh_token_black_listed(
         .get(&refresh_token)
         .expect("Failed to get refresh token from Redis");
     Ok(result.map(|s| s == user_id).unwrap_or(false))
+}
+
+pub fn hash_password(password: &str) -> Result<String, argon2::password_hash::Error> {
+    let salt = SaltString::generate(&mut OsRng);
+    let argon2 = Argon2::default();
+    argon2
+        .hash_password(password.as_bytes(), &salt)
+        .map_err(|e| e)
+        .map(|hash| hash.to_string())
+}
+
+pub fn verify_password(hash: &str, password: &str) -> Result<bool, argon2::password_hash::Error> {
+    let argon2 = Argon2::default();
+    let parsed_hash = PasswordHash::new(hash).map_err(|e| e)?;
+    argon2
+        .verify_password(password.as_bytes(), &parsed_hash)
+        .map_err(|e| e)
+        .map(|_| true)
 }

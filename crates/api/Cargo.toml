@@ -23,3 +23,4 @@ entity = { path = "../entity" }
 migration = { path = "../migration" }
 service = { path = "../service" }
 redis = "0.26.1"
+argon2 = "0.5.3"
