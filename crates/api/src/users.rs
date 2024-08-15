@@ -1,10 +1,11 @@
-use crate::{config::AppState, errors::ServerError};
+use crate::{auth::AccessTokenClaims, config::AppState, errors::ServerError};
 
 use axum::{
     debug_handler,
     extract::{Path, State},
     Json,
 };
+use entity::sea_orm_active_enums::RoleEnum;
 use service::Mutation;
 
 #[derive(serde::Deserialize, serde::Serialize)]
@@ -18,6 +19,8 @@ pub struct CreateUserRequest {
 pub struct UserInfo {
     pub email: String,
     pub username: String,
+    pub roles: Vec<RoleEnum>,
+    pub status: i32,
 }
 
 #[debug_handler]
@@ -42,8 +45,13 @@ pub async fn create_user(
 #[debug_handler]
 pub async fn get_user(
     State(state): State<AppState>,
+    claims: AccessTokenClaims,
     Path(id): Path<String>,
 ) -> Result<Json<UserInfo>, ServerError> {
+    if claims.sub != id && !claims.roles.contains(&RoleEnum::Admin) {
+        tracing::error!("Unauthorized access: {:?}", claims);
+        return Err(ServerError::Unauthorized);
+    }
     let user = service::Query::find_user_by_id(&state.db, id)
         .await
         .map_err(|err| {
@@ -55,15 +63,52 @@ pub async fn get_user(
     Ok(Json(UserInfo {
         email: user.email,
         username: user.username,
+        roles: user.roles,
+        status: user.status,
     }))
+}
+
+#[debug_handler]
+pub async fn get_all_users(
+    State(state): State<AppState>,
+    claims: AccessTokenClaims,
+) -> Result<Json<Vec<UserInfo>>, ServerError> {
+    if !claims.roles.contains(&RoleEnum::Admin) {
+        tracing::error!("Unauthorized access: {:?}", claims);
+        return Err(ServerError::Unauthorized);
+    }
+
+    let users = service::Query::find_all_users(&state.db)
+        .await
+        .map_err(|err| {
+            tracing::error!("Failed to get all users: {:?}", err);
+            ServerError::InternalServerError
+        })?;
+
+    Ok(Json(
+        users
+            .into_iter()
+            .map(|user| UserInfo {
+                email: user.email,
+                username: user.username,
+                roles: user.roles,
+                status: user.status,
+            })
+            .collect(),
+    ))
 }
 
 #[debug_handler]
 pub async fn update_user(
     State(state): State<AppState>,
+    claims: AccessTokenClaims,
     Path(id): Path<String>,
     Json(user): Json<CreateUserRequest>,
 ) -> Result<String, ServerError> {
+    if claims.sub != id && !claims.roles.contains(&RoleEnum::Admin) {
+        tracing::error!("Unauthorized access: {:?}", claims);
+        return Err(ServerError::Unauthorized);
+    }
     Mutation::update_user(&state.db, id, user.email, user.username, user.password)
         .await
         .map(|_| "User updated successfully".to_owned())
@@ -76,8 +121,13 @@ pub async fn update_user(
 #[debug_handler]
 pub async fn delete_user(
     State(state): State<AppState>,
+    claims: AccessTokenClaims,
     Path(id): Path<String>,
 ) -> Result<String, ServerError> {
+    if claims.sub != id && !claims.roles.contains(&RoleEnum::Admin) {
+        tracing::error!("Unauthorized access: {:?}", claims);
+        return Err(ServerError::Unauthorized);
+    }
     Mutation::delete_user(&state.db, id)
         .await
         .map(|_| "User deleted successfully".to_owned())

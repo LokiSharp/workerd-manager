@@ -26,6 +26,7 @@ pub enum ServerError {
     FailedToDecodeRefreshToken,
     FailedToGenerateTokenPair,
     NotFound,
+    Unauthorized,
 }
 
 impl IntoResponse for ServerError {
@@ -61,6 +62,7 @@ impl IntoResponse for ServerError {
                 "Failed to generate token pair",
             ),
             ServerError::NotFound => (StatusCode::NOT_FOUND, "Not found"),
+            ServerError::Unauthorized => (StatusCode::UNAUTHORIZED, "Unauthorized"),
         };
         let body = Json(json!({
             "error": error_message,

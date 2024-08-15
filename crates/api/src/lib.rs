@@ -11,7 +11,7 @@ use axum::{
     Router,
 };
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
-use users::{create_user, delete_user, get_user, update_user};
+use users::{create_user, delete_user, get_all_users, get_user, update_user};
 
 #[tokio::main]
 pub async fn start() {
@@ -27,7 +27,7 @@ pub async fn start() {
         .route("/", get(index))
         .route("/auth/login", post(login))
         .route("/auth/refresh-tokens", post(refresh_token))
-        .route("/users", post(create_user))
+        .route("/users", get(get_all_users).post(create_user))
         .route(
             "/users/:id",
             get(get_user).patch(update_user).delete(delete_user),

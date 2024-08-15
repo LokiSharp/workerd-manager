@@ -30,6 +30,10 @@ impl Query {
             .one(db)
             .await
     }
+
+    pub async fn find_all_users(db: &DbConn) -> Result<Vec<user::Model>, DbErr> {
+        User::find().all(db).await
+    }
 }
 
 #[cfg(test)]
@@ -138,6 +142,47 @@ mod tests {
                 DatabaseBackend::Postgres,
                 r#"SELECT "user"."id", "user"."email", "user"."username", "user"."password", CAST("user"."roles" AS text[]), "user"."status" FROM "user" WHERE "user"."email" = $1 LIMIT $2"#,
                 ["test@example.com".into(), 1u64.into()]
+            )]
+        )
+    }
+
+    #[tokio::test]
+    async fn test_find_all_users() {
+        let db = MockDatabase::new(DatabaseBackend::Postgres)
+            .append_query_results([[
+                user::Model {
+                    id: Uuid::parse_str("00000000-0000-0000-0000-000000000000").unwrap(),
+                    email: "test0@example.com".to_owned(),
+                    username: "Test0".to_owned(),
+                    password: "password".to_owned(),
+                    roles: vec![RoleEnum::User],
+                    status: 0,
+                },
+                user::Model {
+                    id: Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap(),
+                    email: "test1@example.com".to_owned(),
+                    username: "Test1".to_owned(),
+                    password: "password".to_owned(),
+                    roles: vec![RoleEnum::User],
+                    status: 0,
+                },
+            ]])
+            .into_connection();
+
+        {
+            let users = Query::find_all_users(&db)
+                .await
+                .expect("Failed to find users");
+
+            assert_eq!(users.len(), 2);
+        }
+
+        assert_eq!(
+            db.into_transaction_log(),
+            [Transaction::from_sql_and_values(
+                DatabaseBackend::Postgres,
+                r#"SELECT "user"."id", "user"."email", "user"."username", "user"."password", CAST("user"."roles" AS text[]), "user"."status" FROM "user""#,
+                []
             )]
         )
     }

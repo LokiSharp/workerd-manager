@@ -9,6 +9,7 @@ use axum_extra::{
     headers::{authorization::Bearer, Authorization},
     TypedHeader,
 };
+use entity::sea_orm_active_enums::RoleEnum;
 use jsonwebtoken::{
     decode, encode, get_current_timestamp, DecodingKey, Header, TokenData, Validation,
 };
@@ -67,6 +68,8 @@ pub async fn refresh_token(
 pub struct AccessTokenClaims {
     pub sub: String,
     pub username: String,
+    pub roles: Vec<RoleEnum>,
+    pub status: i32,
     pub exp: u64,
 }
 
@@ -176,6 +179,8 @@ pub async fn generate_token_pair(
     let access_token = AccessTokenClaims {
         sub: user.id.to_string().to_owned(),
         username: user.username.to_owned(),
+        roles: user.roles,
+        status: user.status,
         exp: get_current_timestamp() + 60 * 60,
     };
 
