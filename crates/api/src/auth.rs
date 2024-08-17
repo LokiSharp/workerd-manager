@@ -19,7 +19,7 @@ use jsonwebtoken::{
 };
 use redis::Commands;
 use serde::{Deserialize, Serialize};
-use service::Query;
+use service::users::Query;
 use std::fmt::Display;
 
 #[debug_handler]

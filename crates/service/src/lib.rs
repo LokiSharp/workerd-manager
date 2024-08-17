@@ -1,7 +1,3 @@
-mod mutation;
-mod query;
-
-pub use mutation::*;
-pub use query::*;
-
+pub mod users;
+pub mod workers;
 pub use sea_orm;

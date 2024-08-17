@@ -2,6 +2,7 @@ pub mod auth;
 pub mod config;
 pub mod errors;
 pub mod users;
+pub mod workers;
 
 use crate::config::AppState;
 use crate::errors::ServerError;
@@ -12,6 +13,7 @@ use axum::{
 };
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use users::{create_user, delete_user, get_all_users, get_user, update_user};
+use workers::{create_worker, delete_worker, get_all_workers, get_worker, update_worker};
 
 #[tokio::main]
 pub async fn start() {
@@ -31,6 +33,11 @@ pub async fn start() {
         .route(
             "/users/:id",
             get(get_user).patch(update_user).delete(delete_user),
+        )
+        .route("/workers", get(get_all_workers).post(create_worker))
+        .route(
+            "/workers/:id",
+            get(get_worker).patch(update_worker).delete(delete_worker),
         )
         .with_state(state.clone());
 

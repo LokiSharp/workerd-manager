@@ -24,13 +24,12 @@ impl MigrationTrait for Migration {
                     .if_not_exists()
                     .col(
                         uuid(User::Id)
-                            .not_null()
                             .primary_key()
                             .default(Expr::cust("gen_random_uuid()")),
                     )
-                    .col(string(User::Email).not_null().unique_key())
-                    .col(string(User::Username).not_null().unique_key())
-                    .col(string(User::Password).not_null())
+                    .col(string(User::Email).unique_key())
+                    .col(string(User::Username).unique_key())
+                    .col(string(User::Password))
                     .col(
                         array(
                             User::Roles,
@@ -41,10 +40,9 @@ impl MigrationTrait for Migration {
                                     .collect::<Vec<_>>(),
                             },
                         )
-                        .not_null()
                         .default(Expr::value(r#"{user}"#)),
                     )
-                    .col(integer(User::Status).not_null().default(Expr::value(0)))
+                    .col(integer(User::Status).default(Expr::value(0)))
                     .to_owned(),
             )
             .await?;
@@ -56,20 +54,19 @@ impl MigrationTrait for Migration {
                     .if_not_exists()
                     .col(
                         uuid(Worker::Id)
-                            .not_null()
                             .primary_key()
                             .default(Expr::cust("gen_random_uuid()")),
                     )
-                    .col(string(Worker::ExternalPath).not_null().default("/"))
-                    .col(string(Worker::HostName).not_null().default("localhost"))
-                    .col(string(Worker::NodeName).not_null().default("default"))
-                    .col(integer(Worker::Port).not_null())
-                    .col(string(Worker::Entry).not_null().default("entry.js"))
-                    .col(string(Worker::Code).not_null())
-                    .col(string(Worker::Name).not_null())
-                    .col(string(Worker::TunnelId))
-                    .col(string(Worker::Template))
-                    .col(uuid(Worker::UserId).not_null())
+                    .col(string(Worker::ExternalPath).default("/"))
+                    .col(string(Worker::HostName).default("localhost"))
+                    .col(string(Worker::NodeName).default("default"))
+                    .col(integer(Worker::Port))
+                    .col(string(Worker::Entry).default("entry.js"))
+                    .col(string(Worker::Code))
+                    .col(string(Worker::Name))
+                    .col(string_null(Worker::TunnelId))
+                    .col(string_null(Worker::Template))
+                    .col(uuid(Worker::UserId))
                     .to_owned(),
             )
             .await?;

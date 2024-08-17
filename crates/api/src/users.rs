@@ -10,17 +10,18 @@ use axum::{
     Json,
 };
 use entity::sea_orm_active_enums::RoleEnum;
-use service::Mutation;
+use service::users::{Mutation, Query};
 
 #[derive(serde::Deserialize, serde::Serialize)]
-pub struct CreateUserRequest {
+pub struct UserCreateRequest {
     pub email: String,
     pub username: String,
     pub password: String,
 }
 
 #[derive(serde::Deserialize, serde::Serialize)]
-pub struct UserInfo {
+pub struct UserInfoResponse {
+    pub id: String,
     pub email: String,
     pub username: String,
     pub roles: Vec<RoleEnum>,
@@ -30,7 +31,7 @@ pub struct UserInfo {
 #[debug_handler]
 pub async fn create_user(
     State(state): State<AppState>,
-    Json(new_user): Json<CreateUserRequest>,
+    Json(new_user): Json<UserCreateRequest>,
 ) -> Result<String, ServerError> {
     let hashed_password = match hash_password(&new_user.password) {
         Ok(hash) => hash,
@@ -59,12 +60,12 @@ pub async fn get_user(
     State(state): State<AppState>,
     claims: AccessTokenClaims,
     Path(id): Path<String>,
-) -> Result<Json<UserInfo>, ServerError> {
+) -> Result<Json<UserInfoResponse>, ServerError> {
     if claims.sub != id && !claims.roles.contains(&RoleEnum::Admin) {
         tracing::error!("Unauthorized access: {:?}", claims);
         return Err(ServerError::Unauthorized);
     }
-    let user = service::Query::find_user_by_id(&state.db, id)
+    let user = Query::find_user_by_id(&state.db, id)
         .await
         .map_err(|err| {
             tracing::error!("Failed to get user: {:?}", err);
@@ -72,7 +73,8 @@ pub async fn get_user(
         })?
         .ok_or(ServerError::NotFound)?;
 
-    Ok(Json(UserInfo {
+    Ok(Json(UserInfoResponse {
+        id: user.id.to_string(),
         email: user.email,
         username: user.username,
         roles: user.roles,
@@ -84,23 +86,22 @@ pub async fn get_user(
 pub async fn get_all_users(
     State(state): State<AppState>,
     claims: AccessTokenClaims,
-) -> Result<Json<Vec<UserInfo>>, ServerError> {
+) -> Result<Json<Vec<UserInfoResponse>>, ServerError> {
     if !claims.roles.contains(&RoleEnum::Admin) {
         tracing::error!("Unauthorized access: {:?}", claims);
         return Err(ServerError::Unauthorized);
     }
 
-    let users = service::Query::find_all_users(&state.db)
-        .await
-        .map_err(|err| {
-            tracing::error!("Failed to get all users: {:?}", err);
-            ServerError::InternalServerError
-        })?;
+    let users = Query::find_all_users(&state.db).await.map_err(|err| {
+        tracing::error!("Failed to get all users: {:?}", err);
+        ServerError::InternalServerError
+    })?;
 
     Ok(Json(
         users
             .into_iter()
-            .map(|user| UserInfo {
+            .map(|user| UserInfoResponse {
+                id: user.id.to_string(),
                 email: user.email,
                 username: user.username,
                 roles: user.roles,
@@ -115,7 +116,7 @@ pub async fn update_user(
     State(state): State<AppState>,
     claims: AccessTokenClaims,
     Path(id): Path<String>,
-    Json(user): Json<CreateUserRequest>,
+    Json(user): Json<UserCreateRequest>,
 ) -> Result<String, ServerError> {
     if claims.sub != id && !claims.roles.contains(&RoleEnum::Admin) {
         tracing::error!("Unauthorized access: {:?}", claims);

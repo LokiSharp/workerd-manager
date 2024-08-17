@@ -42,17 +42,21 @@ mod tests {
 
     use super::*;
 
+    fn create_user_with_id(id: &str) -> user::Model {
+        user::Model {
+            id: Uuid::parse_str(id).unwrap(),
+            email: "test@example.com".to_owned(),
+            username: "Test".to_owned(),
+            password: "password".to_owned(),
+            roles: vec![RoleEnum::User],
+            status: 0,
+        }
+    }
+
     #[tokio::test]
     async fn test_find_user_by_id() {
         let db = MockDatabase::new(DatabaseBackend::Postgres)
-            .append_query_results([[user::Model {
-                id: Uuid::parse_str("00000000-0000-0000-0000-000000000000").unwrap(),
-                email: "test@example.com".to_owned(),
-                username: "Test".to_owned(),
-                password: "password".to_owned(),
-                roles: vec![RoleEnum::User],
-                status: 0,
-            }]])
+            .append_query_results([[create_user_with_id("00000000-0000-0000-0000-000000000000")]])
             .into_connection();
 
         {
@@ -83,14 +87,7 @@ mod tests {
     #[tokio::test]
     async fn test_find_user_by_username() {
         let db = MockDatabase::new(DatabaseBackend::Postgres)
-            .append_query_results([[user::Model {
-                id: Uuid::parse_str("00000000-0000-0000-0000-000000000000").unwrap(),
-                email: "test@example.com".to_owned(),
-                username: "Test".to_owned(),
-                password: "password".to_owned(),
-                roles: vec![RoleEnum::User],
-                status: 0,
-            }]])
+            .append_query_results([[create_user_with_id("00000000-0000-0000-0000-000000000000")]])
             .into_connection();
 
         {
@@ -116,14 +113,7 @@ mod tests {
     #[tokio::test]
     async fn test_find_user_by_email() {
         let db = MockDatabase::new(DatabaseBackend::Postgres)
-            .append_query_results([[user::Model {
-                id: Uuid::parse_str("00000000-0000-0000-0000-000000000000").unwrap(),
-                email: "test@example.com".to_owned(),
-                username: "Test".to_owned(),
-                password: "password".to_owned(),
-                roles: vec![RoleEnum::User],
-                status: 0,
-            }]])
+            .append_query_results([[create_user_with_id("00000000-0000-0000-0000-000000000000")]])
             .into_connection();
 
         {
@@ -150,22 +140,8 @@ mod tests {
     async fn test_find_all_users() {
         let db = MockDatabase::new(DatabaseBackend::Postgres)
             .append_query_results([[
-                user::Model {
-                    id: Uuid::parse_str("00000000-0000-0000-0000-000000000000").unwrap(),
-                    email: "test0@example.com".to_owned(),
-                    username: "Test0".to_owned(),
-                    password: "password".to_owned(),
-                    roles: vec![RoleEnum::User],
-                    status: 0,
-                },
-                user::Model {
-                    id: Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap(),
-                    email: "test1@example.com".to_owned(),
-                    username: "Test1".to_owned(),
-                    password: "password".to_owned(),
-                    roles: vec![RoleEnum::User],
-                    status: 0,
-                },
+                create_user_with_id("00000000-0000-0000-0000-000000000000"),
+                create_user_with_id("00000000-0000-0000-0000-000000000000"),
             ]])
             .into_connection();
 

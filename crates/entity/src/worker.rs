@@ -16,8 +16,8 @@ pub struct Model {
     pub entry: String,
     pub code: String,
     pub name: String,
-    pub tunnel_id: String,
-    pub template: String,
+    pub tunnel_id: Option<String>,
+    pub template: Option<String>,
     pub user_id: Uuid,
 }
 
