@@ -5,8 +5,8 @@ use argon2::{
 };
 use axum::{
     async_trait, debug_handler,
-    extract::{FromRef, FromRequestParts, State},
-    http::request::Parts,
+    extract::{FromRef, FromRequestParts, Request, State},
+    http::{request::Parts, HeaderMap},
     Json, RequestPartsExt,
 };
 use axum_extra::{
@@ -55,19 +55,18 @@ pub async fn login(
 pub async fn refresh_token(
     State(state): State<AppState>,
     claims: RefreshTokenClaims,
+    req: Request,
 ) -> Result<Json<AuthBody>, ServerError> {
+    let jwt = extract_jwt_from_headers(req.headers().to_owned())
+        .map_err(|_| ServerError::InvalidToken)?;
     if claims.sub.is_empty() {
         return Err(ServerError::InvalidToken);
     }
 
-    let (access_token, refresh_token) = generate_token_pair(
-        &state,
-        &claims.sub,
-        claims.current_refresh_token.as_deref(),
-        claims.current_refresh_token_expires_at,
-    )
-    .await
-    .map_err(|_| ServerError::FailedToGenerateTokenPair)?;
+    let (access_token, refresh_token) =
+        generate_token_pair(&state, &claims.sub, Some(jwt.as_str()), Some(claims.exp))
+            .await
+            .map_err(|_| ServerError::FailedToGenerateTokenPair)?;
 
     Ok(Json(AuthBody::new(access_token, refresh_token)))
 }
@@ -107,6 +106,22 @@ impl Display for AccessTokenClaims {
     }
 }
 
+pub fn extract_jwt_from_headers(headers: HeaderMap) -> Result<String, ServerError> {
+    let auth_header = headers
+        .get("Authorization")
+        .ok_or(ServerError::MissingAuthorizationHeader)?;
+
+    let auth_str = auth_header
+        .to_str()
+        .map_err(|_| ServerError::InvalidAuthorizationHeader)?;
+    if !auth_str.starts_with("Bearer ") {
+        return Err(ServerError::InvalidAuthorizationHeader);
+    }
+
+    let jwt = auth_str.trim_start_matches("Bearer ").to_string();
+    Ok(jwt)
+}
+
 #[async_trait]
 impl<S> FromRequestParts<S> for RefreshTokenClaims
 where
@@ -130,8 +145,6 @@ where
 #[derive(Debug, Serialize, Deserialize)]
 pub struct RefreshTokenClaims {
     pub sub: String,
-    pub current_refresh_token: Option<String>,
-    pub current_refresh_token_expires_at: Option<u64>,
     pub exp: u64,
 }
 
@@ -227,8 +240,6 @@ pub fn generate_refresh_token(
 
     let refresh_token = RefreshTokenClaims {
         sub: user_id.to_owned(),
-        current_refresh_token: current_refresh_token.map(|s| s.to_owned()),
-        current_refresh_token_expires_at,
         exp: get_current_timestamp() + 60 * 60 * 24 * 7,
     };
 

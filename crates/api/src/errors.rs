@@ -27,6 +27,8 @@ pub enum ServerError {
     FailedToGenerateTokenPair,
     NotFound,
     Unauthorized,
+    MissingAuthorizationHeader,
+    InvalidAuthorizationHeader,
 }
 
 impl IntoResponse for ServerError {
@@ -63,6 +65,12 @@ impl IntoResponse for ServerError {
             ),
             ServerError::NotFound => (StatusCode::NOT_FOUND, "Not found"),
             ServerError::Unauthorized => (StatusCode::UNAUTHORIZED, "Unauthorized"),
+            ServerError::MissingAuthorizationHeader => {
+                (StatusCode::BAD_REQUEST, "Missing authorization header")
+            }
+            ServerError::InvalidAuthorizationHeader => {
+                (StatusCode::BAD_REQUEST, "Invalid authorization header")
+            }
         };
         let body = Json(json!({
             "error": error_message,

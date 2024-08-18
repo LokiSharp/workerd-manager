@@ -119,7 +119,7 @@ pub async fn run_cmd(
     let mut chan_map = state.chan_map.lock().await;
 
     if chan_map.contains_key(&worker.id) {
-        return Err((StatusCode::BAD_REQUEST, format!("{} is running!", id)).into_response());
+        return Err((StatusCode::BAD_REQUEST, format!("{} is still running!", id)).into_response());
     }
 
     let (tx, rx) = oneshot::channel();
