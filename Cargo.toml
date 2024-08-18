@@ -10,7 +10,8 @@ members = [
     "crates/api",
     "crates/entity",
     "crates/migration",
-    "crates/entity", "crates/service",
+    "crates/entity",
+    "crates/service",
 ]
 
 [dependencies]

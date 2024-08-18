@@ -2,17 +2,19 @@ pub mod auth;
 pub mod config;
 pub mod errors;
 pub mod users;
+pub mod workerd;
 pub mod workers;
 
 use crate::config::AppState;
 use crate::errors::ServerError;
 use auth::{login, refresh_token};
 use axum::{
-    routing::{get, post},
+    routing::{delete, get, post},
     Router,
 };
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use users::{create_user, delete_user, get_all_users, get_user, update_user};
+use workerd::{delete_file, exit_cmd, run_cmd, write_worker_code, write_worker_config_capfile};
 use workers::{create_worker, delete_worker, get_all_workers, get_worker, update_worker};
 
 #[tokio::main]
@@ -39,6 +41,10 @@ pub async fn start() {
             "/workers/:id",
             get(get_worker).patch(update_worker).delete(delete_worker),
         )
+        .route("/workers/:id/config", post(write_worker_config_capfile))
+        .route("/workers/:id/code", post(write_worker_code))
+        .route("/workers/:id/file", delete(delete_file))
+        .route("/workers/:id/exec", post(run_cmd).delete(exit_cmd))
         .with_state(state.clone());
 
     let listener = tokio::net::TcpListener::bind(format!(
