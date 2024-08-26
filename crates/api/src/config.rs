@@ -4,7 +4,6 @@ use jsonwebtoken::{DecodingKey, EncodingKey};
 use service::sea_orm::{Database, DatabaseConnection};
 use std::{borrow::Cow, collections::HashMap, sync::Arc};
 use tokio::sync::{oneshot, Mutex};
-use tracing::error;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -26,13 +25,13 @@ impl AppState {
             db: Database::connect(&*env.database_url)
                 .await
                 .map_err(|err| {
-                    error!("failed to connect to the database: {:?}", err);
+                    tracing::error!("failed to connect to the database: {:?}", err);
                     ConfigError::FailedDatabaseConnection
                 })?
                 .into(),
             redis_client: redis::Client::open(env.redis_url.as_ref())
                 .map_err(|err| {
-                    error!("failed to connect to Redis: {:?}", err);
+                    tracing::error!("failed to connect to Redis: {:?}", err);
                     ConfigError::FailedRedisConnection
                 })?
                 .into(),
@@ -69,7 +68,7 @@ impl EnvironmentVariables {
             match dotenv::var(key) {
                 Ok(value) => Ok(value),
                 Err(err) => {
-                    error!("missing {key}: {err}");
+                    tracing::error!("missing {key}: {err}");
                     Err(ConfigError::FailedReadEnvironment)
                 }
             }

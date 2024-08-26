@@ -5,10 +5,12 @@ use axum::{
     extract::{Path, State},
     http::StatusCode,
     response::IntoResponse,
+    Json,
 };
 use entity::sea_orm_active_enums::RoleEnum;
 use handlebars::Handlebars;
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use service::workers::Query;
 use sha2::{Digest, Sha256};
 use tokio::{fs, process::Command, sync::oneshot};
@@ -30,10 +32,13 @@ pub async fn write_worker_config_capfile(
     State(state): State<AppState>,
     claims: AccessTokenClaims,
     Path(id): Path<String>,
-) -> impl IntoResponse {
+) -> Result<impl IntoResponse, ServerError> {
     let worker = get_worker_with_id(state.to_owned(), claims, id.to_owned())
         .await
-        .expect("Failed to get worker");
+        .map_err(|err| {
+            tracing::error!("Failed to get worker: {:?}", err);
+            ServerError::WorkerNotFound
+        })?;
 
     let file_map = generate_worker_configs(&state, vec![worker.clone()]).await;
     let file_content = file_map.get(&worker.id).unwrap().clone();
@@ -43,15 +48,22 @@ pub async fn write_worker_config_capfile(
         .join(worker.id)
         .join("Capfile");
 
-    if let Err(_) = fs::create_dir_all(path.parent().unwrap()).await {
-        return Err(ServerError::InternalServerError);
-    }
+    fs::create_dir_all(path.parent().unwrap())
+        .await
+        .map_err(|err| {
+            tracing::error!("Failed to create directories: {:?}", err);
+            ServerError::InternalServerError
+        })?;
 
-    if let Err(_) = fs::write(path, file_content).await {
-        return Err(ServerError::InternalServerError);
-    }
+    fs::write(path, file_content).await.map_err(|err| {
+        tracing::error!("Failed to write file: {:?}", err);
+        ServerError::InternalServerError
+    })?;
 
-    Ok((StatusCode::OK, "Capfile written"))
+    Ok((
+        StatusCode::OK,
+        Json(json!({ "message": "Capfile written" })),
+    ))
 }
 
 #[debug_handler]
@@ -59,10 +71,13 @@ pub async fn write_worker_code(
     State(state): State<AppState>,
     claims: AccessTokenClaims,
     Path(id): Path<String>,
-) -> impl IntoResponse {
+) -> Result<impl IntoResponse, ServerError> {
     let worker = get_worker_with_id(state.to_owned(), claims, id.to_owned())
         .await
-        .expect("Failed to get worker");
+        .map_err(|err| {
+            tracing::error!("Failed to get worker: {:?}", err);
+            ServerError::WorkerNotFound
+        })?;
 
     let path = PathBuf::from(&state.env.workerd_dir.to_string())
         .join(state.env.worker_info_dir.to_string())
@@ -70,15 +85,22 @@ pub async fn write_worker_code(
         .join("src")
         .join(worker.entry);
 
-    if let Err(_) = fs::create_dir_all(path.parent().unwrap()).await {
-        return Err(ServerError::InternalServerError);
-    }
+    fs::create_dir_all(path.parent().unwrap())
+        .await
+        .map_err(|err| {
+            tracing::error!("Failed to create directories: {:?}", err);
+            ServerError::InternalServerError
+        })?;
 
-    if let Err(_) = fs::write(path, worker.code).await {
-        return Err(ServerError::InternalServerError);
-    }
+    fs::write(path, worker.code).await.map_err(|err| {
+        tracing::error!("Failed to write file: {:?}", err);
+        ServerError::InternalServerError
+    })?;
 
-    Ok((StatusCode::OK, "Worker code written"))
+    Ok((
+        StatusCode::OK,
+        Json(json!({ "message": "Worker code written" })),
+    ))
 }
 
 #[debug_handler]
@@ -86,24 +108,27 @@ pub async fn delete_file(
     State(state): State<AppState>,
     claims: AccessTokenClaims,
     Path(id): Path<String>,
-) -> impl IntoResponse {
+) -> Result<impl IntoResponse, ServerError> {
     let worker = get_worker_with_id(state.to_owned(), claims, id.to_owned())
         .await
         .map_err(|err| {
             tracing::error!("Failed to get worker: {:?}", err);
-            ServerError::InternalServerError
-        })
-        .expect("Failed to get worker");
+            ServerError::WorkerNotFound
+        })?;
 
     let path = PathBuf::from(state.env.workerd_dir.to_string())
         .join(state.env.worker_info_dir.to_string())
         .join(worker.id);
 
-    if let Err(_) = fs::remove_dir_all(path).await {
-        return Err(ServerError::InternalServerError);
-    }
+    fs::remove_dir_all(path).await.map_err(|err| {
+        tracing::error!("Failed to delete file: {:?}", err);
+        ServerError::InternalServerError
+    })?;
 
-    Ok((StatusCode::OK, "Worker file deleted"))
+    Ok((
+        StatusCode::OK,
+        Json(json!({ "message": "Worker file deleted" })),
+    ))
 }
 
 #[debug_handler]
@@ -111,15 +136,19 @@ pub async fn run_cmd(
     State(state): State<AppState>,
     claims: AccessTokenClaims,
     Path(id): Path<String>,
-) -> impl IntoResponse {
+) -> Result<impl IntoResponse, ServerError> {
     let worker = get_worker_with_id(state.to_owned(), claims, id.to_owned())
         .await
-        .expect("Failed to get worker");
+        .map_err(|err| {
+            tracing::error!("Failed to get worker: {:?}", err);
+            ServerError::WorkerNotFound
+        })?;
 
     let mut chan_map = state.chan_map.lock().await;
 
     if chan_map.contains_key(&worker.id) {
-        return Err((StatusCode::BAD_REQUEST, format!("{} is still running!", id)).into_response());
+        tracing::error!("{} is still running!", id);
+        return Err(ServerError::WorkerStillRunning);
     }
 
     let (tx, rx) = oneshot::channel();
@@ -142,7 +171,11 @@ pub async fn run_cmd(
         let child = Command::new(state.env.workerd_bin_path.to_string())
             .args(&args)
             .spawn()
-            .expect("Failed to start subprocess");
+            .map_err(|err| {
+                tracing::error!("Failed to start subprocess: {:?}", err);
+                ServerError::FailedStartWorker
+            })
+            .unwrap();
 
         let mut child_map = state.child_map.lock().await;
         child_map.insert(worker.id.clone(), child);
@@ -152,7 +185,10 @@ pub async fn run_cmd(
         let _ = child.kill().await;
     });
 
-    Ok((StatusCode::OK, format!("{} is running!", id)).into_response())
+    Ok((
+        StatusCode::OK,
+        Json(json!({ "message": format!("{} is running!", id) })),
+    ))
 }
 
 #[debug_handler]
@@ -160,31 +196,37 @@ pub async fn exit_cmd(
     State(state): State<AppState>,
     claims: AccessTokenClaims,
     Path(id): Path<String>,
-) -> impl IntoResponse {
+) -> Result<impl IntoResponse, ServerError> {
     let worker = get_worker_with_id(state.to_owned(), claims, id.to_owned())
         .await
-        .expect("Failed to get worker");
+        .map_err(|err| {
+            tracing::error!("Failed to get worker: {:?}", err);
+            ServerError::WorkerNotFound
+        })?;
 
     let mut chan_map = state.chan_map.lock().await;
 
     if let Some(tx) = chan_map.remove(&worker.id) {
         let _ = tx.send(());
     } else {
-        return Err((StatusCode::BAD_REQUEST, format!("{} is not running!", id)).into_response());
+        return Err(ServerError::WorkerNotRunning);
     }
 
-    Ok((StatusCode::OK, format!("{} is exited!", id)).into_response())
+    Ok((
+        StatusCode::OK,
+        Json(json!({ "message": format!("{} exited", id) })),
+    ))
 }
 
 #[debug_handler]
-pub async fn exit_all_cmd(State(state): State<AppState>) -> impl IntoResponse {
+pub async fn exit_all_cmd(State(state): State<AppState>) -> Result<impl IntoResponse, ServerError> {
     let mut chan_map = state.chan_map.lock().await;
 
     for (_, tx) in chan_map.drain() {
         let _ = tx.send(());
     }
 
-    (StatusCode::OK, "All commands exited").into_response()
+    Ok((StatusCode::OK, "All commands exited").into_response())
 }
 
 fn get_template_hash(template: &str) -> String {
