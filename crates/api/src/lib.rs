@@ -9,9 +9,11 @@ use crate::config::AppState;
 use crate::errors::ServerError;
 use auth::{login, refresh_token};
 use axum::{
+    http::{self, Method},
     routing::{delete, get, post},
     Router,
 };
+use tower_http::cors::{Any, CorsLayer};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use users::{create_user, delete_user, get_all_users, get_user, update_user};
 use workerd::{delete_file, exit_cmd, run_cmd, write_worker_code, write_worker_config_capfile};
@@ -22,6 +24,21 @@ pub async fn start() {
     tracing_subscriber::registry()
         .with(tracing_subscriber::fmt::layer())
         .init();
+
+    let cors = CorsLayer::new()
+        .allow_methods([
+            Method::GET,
+            Method::POST,
+            Method::PUT,
+            Method::DELETE,
+            Method::OPTIONS,
+        ])
+        .allow_origin(Any)
+        .allow_headers([
+            http::header::CONTENT_TYPE,
+            http::header::ACCEPT,
+            http::header::AUTHORIZATION,
+        ]);
 
     let state = AppState::from_env()
         .await
@@ -45,6 +62,7 @@ pub async fn start() {
         .route("/workers/:id/code", post(write_worker_code))
         .route("/workers/:id/file", delete(delete_file))
         .route("/workers/:id/exec", post(run_cmd).delete(exit_cmd))
+        .layer(cors)
         .with_state(state.clone());
 
     let listener = tokio::net::TcpListener::bind(format!(
