@@ -28,11 +28,16 @@ pub struct UserInfoResponse {
     pub status: i32,
 }
 
+#[derive(serde::Deserialize, serde::Serialize)]
+pub struct MessageResponse {
+    pub message: String,
+}
+
 #[debug_handler]
 pub async fn create_user(
     State(state): State<AppState>,
     Json(new_user): Json<UserCreateRequest>,
-) -> Result<String, ServerError> {
+) -> Result<Json<MessageResponse>, ServerError> {
     let hashed_password = match hash_password(&new_user.password) {
         Ok(hash) => hash,
         Err(err) => {
@@ -48,7 +53,11 @@ pub async fn create_user(
         hashed_password,
     )
     .await
-    .map(|_| "User created successfully".to_owned())
+    .map(|_| {
+        Json(MessageResponse {
+            message: "User created successfully".to_owned(),
+        })
+    })
     .map_err(|err| {
         tracing::error!("Failed to create user: {:?}", err);
         ServerError::InternalServerError
@@ -117,7 +126,7 @@ pub async fn update_user(
     claims: AccessTokenClaims,
     Path(id): Path<String>,
     Json(user): Json<UserCreateRequest>,
-) -> Result<String, ServerError> {
+) -> Result<Json<MessageResponse>, ServerError> {
     if claims.sub != id && !claims.roles.contains(&RoleEnum::Admin) {
         tracing::error!("Unauthorized access: {:?}", claims);
         return Err(ServerError::Unauthorized);
@@ -133,7 +142,11 @@ pub async fn update_user(
 
     Mutation::update_user(&state.db, id, user.email, user.username, hashed_password)
         .await
-        .map(|_| "User updated successfully".to_owned())
+        .map(|_| {
+            Json(MessageResponse {
+                message: "User updated successfully".to_owned(),
+            })
+        })
         .map_err(|err| {
             tracing::error!("Failed to update user: {:?}", err);
             ServerError::InternalServerError
@@ -145,14 +158,18 @@ pub async fn delete_user(
     State(state): State<AppState>,
     claims: AccessTokenClaims,
     Path(id): Path<String>,
-) -> Result<String, ServerError> {
+) -> Result<Json<MessageResponse>, ServerError> {
     if claims.sub != id && !claims.roles.contains(&RoleEnum::Admin) {
         tracing::error!("Unauthorized access: {:?}", claims);
         return Err(ServerError::Unauthorized);
     }
     Mutation::delete_user(&state.db, id)
         .await
-        .map(|_| "User deleted successfully".to_owned())
+        .map(|_| {
+            Json(MessageResponse {
+                message: "User deleted successfully".to_owned(),
+            })
+        })
         .map_err(|err| {
             tracing::error!("Failed to delete user: {:?}", err);
             ServerError::InternalServerError

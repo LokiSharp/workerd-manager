@@ -42,12 +42,17 @@ pub struct WorkerInfoResponse {
     pub user_id: String,
 }
 
+#[derive(serde::Deserialize, serde::Serialize)]
+pub struct MessageResponse {
+    pub message: String,
+}
+
 #[debug_handler]
 pub async fn create_worker(
     State(state): State<AppState>,
     claims: AccessTokenClaims,
     Json(worker): Json<WorkerCreateRequest>,
-) -> Result<String, ServerError> {
+) -> Result<Json<MessageResponse>, ServerError> {
     Mutation::create_worker(
         &state.db,
         worker.name,
@@ -56,7 +61,11 @@ pub async fn create_worker(
         claims.sub.clone(),
     )
     .await
-    .map(|_| "Worker created successfully".to_owned())
+    .map(|_| {
+        Json(MessageResponse {
+            message: "Worker created successfully".to_owned(),
+        })
+    })
     .map_err(|err| {
         tracing::error!("Failed to create worker: {:?}", err);
         ServerError::InternalServerError
@@ -142,7 +151,7 @@ pub async fn update_worker(
     claims: AccessTokenClaims,
     Path(id): Path<String>,
     Json(worker_request): Json<WorkerUpdateRequest>,
-) -> Result<String, ServerError> {
+) -> Result<Json<MessageResponse>, ServerError> {
     let worker = Query::find_worker_by_id(&state.db, id.to_owned())
         .await
         .map_err(|err| {
@@ -169,7 +178,11 @@ pub async fn update_worker(
         worker_request.template,
     )
     .await
-    .map(|_| "Worker updated successfully".to_owned())
+    .map(|_| {
+        Json(MessageResponse {
+            message: "Worker updated successfully".to_owned(),
+        })
+    })
     .map_err(|err| {
         tracing::error!("Failed to update worker: {:?}", err);
         ServerError::InternalServerError
@@ -181,7 +194,7 @@ pub async fn delete_worker(
     State(state): State<AppState>,
     claims: AccessTokenClaims,
     Path(id): Path<String>,
-) -> Result<String, ServerError> {
+) -> Result<Json<MessageResponse>, ServerError> {
     let worker = Query::find_worker_by_id(&state.db, id.to_owned())
         .await
         .map_err(|err| {
@@ -197,7 +210,11 @@ pub async fn delete_worker(
 
     Mutation::delete_worker(&state.db, id)
         .await
-        .map(|_| "Worker deleted successfully".to_owned())
+        .map(|_| {
+            Json(MessageResponse {
+                message: "Worker deleted successfully".to_owned(),
+            })
+        })
         .map_err(|err| {
             tracing::error!("Failed to delete worker: {:?}", err);
             ServerError::InternalServerError
